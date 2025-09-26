@@ -14,8 +14,9 @@ class FTPClient:
         self.password = None
 
     def connect(self):
-        """Establish control connection to FTP server"""
+        """ Establishes the connection to the FTP server"""
         try:
+            # gets the socket
             self.control_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.control_socket.connect((self.server_name, self.server_port))
 
@@ -33,22 +34,23 @@ class FTPClient:
             return False
 
     def receive_response(self):
-        """Receive and return response from server"""
+        """ Receive and returns the response we get from the server"""
         try:
             response = ""
             while True:
                 data = self.control_socket.recv(1024).decode('ascii')
                 response += data
-                # Check if we have complete response (ends with \r\n)
+                # Check if its a complete response which should end with \r\n
                 if response.endswith('\r\n'):
                     break
             return response.strip()
+
         except Exception as e:
             print(f"Error receiving response: {e}")
             return ""
 
     def send_command(self, command):
-        """Send command to server and return response"""
+        """ Send a command to the server and return the response"""
         try:
             # Add \r\n to command if not present
             if not command.endswith('\r\n'):
@@ -61,18 +63,17 @@ class FTPClient:
             return ""
 
     def login(self):
-        """Handle user authentication"""
-        # Get username
+        """Handles login to the server - gets username and password"""
         self.username = input("Username: ")
         response = self.send_command(f"USER {self.username}")
         print(response)
 
-        if response.startswith('331'):  # User name okay, need password
+        if response.startswith('331'):  # User name passes, next need password
             self.password = input("Password: ")
             response = self.send_command(f"PASS {self.password}")
             print(response)
 
-            if response.startswith('230'):  # User logged in
+            if response.startswith('230'):  # successfully logged in
                 print("Login successful")
                 return True
             else:
@@ -82,11 +83,11 @@ class FTPClient:
             print("Username not accepted")
             return False
 
-    def parse_pasv_response(self, response):
-        """Parse PASV response to get IP and port for data connection"""
-        # PASV response format: 227 Entering Passive Mode (h1,h2,h3,h4,p1,p2)
-        # IP = h1.h2.h3.h4, Port = p1*256 + p2
+    def parse_passive_response(self, response):
+        """ Parse PASV response to get IP and port for data connection"""
 
+        # PASV format: 227 Entering Passive Mode (h1,h2,h3,h4,p1,p2)
+        # where the IP = h1.h2.h3.h4 and Port = p1*256 + p2
         match = re.search(r'\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)', response)
         if match:
             h1, h2, h3, h4, p1, p2 = map(int, match.groups())
@@ -96,7 +97,7 @@ class FTPClient:
         return None, None
 
     def create_data_connection(self):
-        """Create data connection using PASV mode"""
+        """Create data connection using passive mode"""
         # Send PASV command
         response = self.send_command("PASV")
         print(response)
@@ -106,7 +107,7 @@ class FTPClient:
             return None
 
         # Parse IP and port from response
-        ip, port = self.parse_pasv_response(response)
+        ip, port = self.parse_passive_response(response)
         if not ip or not port:
             print("Failed to parse passive mode response")
             return None
@@ -120,7 +121,7 @@ class FTPClient:
             print(f"Failed to create data connection: {e}")
             return None
 
-    def cmd_ls(self):
+    def ls_command(self):
         """List files in current directory"""
         # Create data connection first
         data_socket = self.create_data_connection()
@@ -153,7 +154,7 @@ class FTPClient:
             data_socket.close()
             print("Failed to list directory")
 
-    def cmd_cd(self, directory):
+    def cd_command(self, directory):
         """Change working directory"""
         response = self.send_command(f"CWD {directory}")
         print(response)
@@ -163,7 +164,7 @@ class FTPClient:
         else:
             print("Failed to change directory")
 
-    def cmd_get(self, filename):
+    def get_command(self, filename):
         """Download file from server"""
         # Create data connection first
         data_socket = self.create_data_connection()
@@ -200,7 +201,7 @@ class FTPClient:
             data_socket.close()
             print("Failed to download file")
 
-    def cmd_put(self, filename):
+    def put_command(self, filename):
         """Upload file to server"""
         # Check if local file exists
         if not os.path.exists(filename):
@@ -242,7 +243,7 @@ class FTPClient:
             data_socket.close()
             print("Failed to upload file")
 
-    def cmd_delete(self, filename):
+    def delete_command(self, filename):
         """Delete file on server"""
         response = self.send_command(f"DELE {filename}")
         print(response)
@@ -252,7 +253,7 @@ class FTPClient:
         else:
             print("Failed to delete file")
 
-    def cmd_quit(self):
+    def quit_command(self):
         """Quit FTP session"""
         response = self.send_command("QUIT")
         print(response)
@@ -260,8 +261,8 @@ class FTPClient:
         print("Goodbye!")
         return True
 
-    def run_interactive(self):
-        """Main interactive loop"""
+    def run_connection(self):
+        # there is where the server handles user commands
         print(f"Connected to {self.server_name}")
 
         while True:
@@ -274,29 +275,29 @@ class FTPClient:
                 cmd = parts[0].lower()
 
                 if cmd == 'ls':
-                    self.cmd_ls()
+                    self.ls_command()
                 elif cmd == 'cd':
                     if len(parts) > 1:
-                        self.cmd_cd(parts[1])
+                        self.cd_command(parts[1])
                     else:
-                        print("Usage: cd <directory>")
+                        print("Enter: cd <directory>")
                 elif cmd == 'get':
                     if len(parts) > 1:
-                        self.cmd_get(parts[1])
+                        self.get_command(parts[1])
                     else:
-                        print("Usage: get <remote-file>")
+                        print("Enter: get <remote-file>")
                 elif cmd == 'put':
                     if len(parts) > 1:
-                        self.cmd_put(parts[1])
+                        self.put_command(parts[1])
                     else:
-                        print("Usage: put <local-file>")
+                        print("Enter: put <local-file>")
                 elif cmd == 'delete':
                     if len(parts) > 1:
-                        self.cmd_delete(parts[1])
+                        self.delete_command(parts[1])
                     else:
-                        print("Usage: delete <remote-file>")
-                elif cmd == 'quit' or cmd == 'exit':
-                    if self.cmd_quit():
+                        print("Enter: delete <remote-file>")
+                elif cmd == 'quit' or cmd == 'exit' or cmd == 'logout':
+                    if self.quit_command():
                         break
                 else:
                     print("Available commands: ls, cd, get, put, delete, quit")
@@ -309,8 +310,9 @@ class FTPClient:
 
 
 def main():
+    # checks the command line arguments
     if len(sys.argv) != 2:
-        print("Usage: python myftp.py <server-name>")
+        print("Enter: python myftp.py <server-name>")
         sys.exit(1)
 
     server_name = sys.argv[1]
@@ -326,9 +328,12 @@ def main():
     if not client.login():
         sys.exit(1)
 
-    # Run interactive session
-    client.run_interactive()
+    # Run the user's commands using the run_connection
+    client.run_connection()
 
 
 if __name__ == "__main__":
     main()
+    
+    
+    
