@@ -226,21 +226,21 @@ def query_dns_server(domain, dns_server_ip, timeout=5):
     
     first we create a UDP socket and send the query to the DNS server, we build the dns query packet and send it to the DNS server on port 53, we then receive the response from the DNS server and parse it, and then we return the response"""
     try:
-        # Create UDP socket
+        # create UDP socket and set the timeout
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.settimeout(timeout)
         
-        # Create DNS query
+        # cCreate DNS query
         query = DNSQuery(domain)
         packet = query.build_query()
         
-        # Send query to DNS server
+        # this sends the query to the DNS server
         sock.sendto(packet, (dns_server_ip, 53))
         
-        # Receive response
+        # receive response from the DNS server
         data, _ = sock.recvfrom(4096)
         
-        # Parse response
+        # then we parse the response
         response = query.parse_response(data)
         
         sock.close()
@@ -256,55 +256,60 @@ def query_dns_server(domain, dns_server_ip, timeout=5):
 
 def display_response(response):
     """Display the DNS response content"""
-    print("Reply received. Content overview:")
+    print("Reply received. Overview:")
     print(f"{response['answer_count']} Answers.")
     print(f"{response['authority_count']} Intermediate Name Servers.")
     print(f"{response['additional_count']} Additional Information Records.")
     
-    # Display answers
+    # display answers section
     print("\nAnswers section:")
     if response['answer_count'] == 0:
         print()
     else:
         for record in response['answers']:
             if record['type'] == 1:  # A record
-                print(f"Name : {record['name']} IP: {record['ip']}")
+                print(f"Name: {record['name']} IP: {record['ip']}")
     
-    # Display authority section
+    # display authority section
     print("\nAuthority Section:")
     for record in response['authorities']:
         if record['type'] == 2:  # NS record
-            print(f"Name : {record['name']} Name Server: {record['nameserver']}")
+            print(f"Name: {record['name']} Name Server: {record['nameserver']}")
     
-    # Display additional section
+    # display additional section
     print("\nAdditional Information Section:")
     for record in response['additionals']:
         if record['type'] == 1:  # A record
-            print(f"Name : {record['name']} IP : {record['ip']}")
+            print(f"Name: {record['name']} IP: {record['ip']}")
         elif record['type'] == 2:  # NS record
-            print(f"Name : {record['name']}")
+            print(f"Name: {record['name']}")
 
 
 def get_next_server(response):
-    """Extract the next DNS server IP to query"""
-    # First check if we have answers with A records
+    """Extract the next DNS server IP to query
+    
+    we check if we have answers with A records. if we do, we return none.
+    if not, it look for NS records in the authority section, and if found its domain name is added to the list.
+    then it looks for IP addresses in the additional section we add the domain name to the list, we then find the IP addresses in the additional section."""
+
+    # check the answer section for A records
     for record in response['answers']:
-        if record['type'] == 1:  # A record found, we're done
+        if record['type'] == 1:  # A record found
             return None
     
-    # Look for NS records in authority section
+    # next look for NS records in the authority section
     ns_servers = []
     for record in response['authorities']:
         if record['type'] == 2:  # NS record
             ns_servers.append(record['nameserver'])
     
-    # Find IP addresses in additional section for the NS servers
+    # find IP addresses in additional section for the NS servers
     for ns in ns_servers:
         for record in response['additionals']:
             if record['type'] == 1 and record['name'] == ns:  # A record
                 return record['ip']
     
-    # If no match found in additional section, try any A record
+    # if no match found in additional section, try any A record
     for record in response['additionals']:
         if record['type'] == 1:  # A record
             return record['ip']
@@ -313,35 +318,39 @@ def get_next_server(response):
 
 
 def iterative_dns_lookup(domain, root_dns_ip):
-    """Perform iterative DNS lookup"""
-    current_server = root_dns_ip
+    """Perform iterative DNS lookup
     
-    while current_server:
+    first the root DNS server is queried, if a response is received, it displays the response.
+    if not, we get the next DNS server to query from the response, we then query the next DNS server, and so on until we run out of servers."""
+    current_server = root_dns_ip # set the current server to the root DNS server
+    
+    while current_server: 
         print("-" * 64)
         print(f"DNS server to query: {current_server}")
         
-        # Query the current DNS server
+        # query the current DNS server
         response = query_dns_server(domain, current_server)
         
+        #this checks if the query failed
         if response is None:
             print("Failed to get response from DNS server")
             return False
         
-        # Display the response
+        # display the response 
         display_response(response)
         
-        # Check if we have an answer
+        # then check if we have an answer 
         has_answer = False
         for record in response['answers']:
-            if record['type'] == 1:  # A record
+            if record['type'] == 1:  # A record found
                 has_answer = True
                 break
         
         if has_answer:
-            # We found the IP address, stop
+            # we ip address found
             return True
         
-        # Get the next server to query
+        # now it gets the next server to query
         next_server = get_next_server(response)
         
         if next_server is None:
@@ -363,9 +372,9 @@ def main():
     domain = sys.argv[1]
     root_dns_ip = sys.argv[2]
     
-    # Perform iterative DNS lookup
+    # DNS lookup
     iterative_dns_lookup(domain, root_dns_ip)
 
 
 if __name__ == "__main__":
-    main() # run the main function
+    main() 
