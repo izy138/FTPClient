@@ -1,0 +1,123 @@
+CNT4713 Cryptography Project - Security Analysis
+
+Name: [Your Team Members' Names Here]
+Group: [Your Group Number]
+Date: [Current Date]
+
+Question A: How could the "secure" server and client framework above be compromised?
+
+The framework could be compromised in several ways:
+
+1. Man-in-the-Middle (MITM) Attack during Key Exchange:
+   - The tunnel command exchanges public keys over the network without authentication
+   - An attacker could intercept the initial connection and substitute their own public keys
+   - Neither the client nor server verifies the identity of the other party
+   - The attacker could decrypt messages from both parties, read them, and re-encrypt them
+
+2. Replay Attacks:
+   - There are no timestamps or nonces in the messages
+   - An attacker could capture and replay encrypted messages
+   - The server would process duplicate messages as if they were new
+
+3. Lack of Message Authentication:
+   - While the hash verification provides integrity checking, it only verifies that the message wasn't corrupted in transit
+   - There's no authentication of who sent the message
+   - An attacker with the public key could send valid encrypted messages
+
+4. No Forward Secrecy:
+   - The same RSA key pair is used for the entire session
+   - If the private key is ever compromised, all past communications can be decrypted
+   - There's no session key rotation
+
+5. Denial of Service (DoS) Vulnerability:
+   - The server creates new threads for each connection without limits
+   - An attacker could exhaust server resources by opening many connections
+   - No rate limiting or connection throttling is implemented
+
+6. Lack of Certificate Authority:
+   - No trusted third party validates the identity of the server or client
+   - Users cannot verify they're connecting to the legitimate server
+
+7. Key Storage in Memory:
+   - Private keys are stored unencrypted in memory
+   - Memory dumps or debugging could expose the keys
+   - Keys are not persisted securely for future sessions
+
+
+Question B: How could you improve the framework?
+
+Several improvements could significantly enhance the security:
+
+1. Implement Certificate-Based Authentication:
+   - Use X.509 certificates signed by a Certificate Authority (CA)
+   - Implement certificate pinning for known servers
+   - Verify certificates during the tunnel establishment phase
+   - This prevents MITM attacks by ensuring identity verification
+
+2. Add Perfect Forward Secrecy (PFS):
+   - Implement Diffie-Hellman Ephemeral (DHE) or Elliptic Curve Diffie-Hellman Ephemeral (ECDHE)
+   - Generate unique session keys for each communication session
+   - Use RSA keys only for authentication, not encryption
+   - Session keys should be destroyed after use
+
+3. Implement Message Authentication Codes (MAC):
+   - Use HMAC with the shared session key
+   - Sign all messages to verify sender authenticity
+   - Include sequence numbers to prevent replay attacks
+
+4. Add Timestamp and Nonce Validation:
+   - Include timestamps in all messages
+   - Reject messages outside a reasonable time window
+   - Use nonces (numbers used once) to prevent replay attacks
+   - Maintain a cache of recent nonces to detect duplicates
+
+5. Use Hybrid Encryption:
+   - Use RSA only to exchange a symmetric key (AES)
+   - Encrypt actual messages with AES-256 in GCM mode
+   - This provides better performance and authenticated encryption
+   - GCM mode provides both confidentiality and integrity
+
+6. Implement Rate Limiting and Connection Management:
+   - Limit the number of connections per IP address
+   - Implement exponential backoff for failed connection attempts
+   - Add connection timeouts and resource limits
+   - Use a connection pool with maximum size
+
+7. Secure Key Storage:
+   - Store private keys encrypted at rest
+   - Use hardware security modules (HSM) or secure enclaves when available
+   - Implement key derivation functions (KDF) for password-based encryption
+   - Clear sensitive data from memory after use
+
+8. Add TLS/SSL Layer:
+   - While the project requires raw sockets, in production use TLS 1.3
+   - TLS provides many of these security features built-in
+   - It includes certificate validation, perfect forward secrecy, and more
+
+9. Implement Logging and Monitoring:
+   - Log all connection attempts and failed authentications
+   - Monitor for suspicious patterns (multiple failed attempts, unusual traffic)
+   - Implement intrusion detection mechanisms
+
+10. Add User Authentication:
+    - Implement username/password authentication
+    - Use strong password hashing (bcrypt, Argon2)
+    - Consider multi-factor authentication (MFA)
+    - This ensures only authorized users can communicate
+
+11. Input Validation and Sanitization:
+    - Validate all received data before processing
+    - Implement message size limits
+    - Sanitize inputs to prevent injection attacks
+
+12. Implement Proper Error Handling:
+    - Don't reveal sensitive information in error messages
+    - Use generic error messages for security failures
+    - Log detailed errors server-side only
+
+Implementation Priority:
+1. Certificate-based authentication (prevents MITM)
+2. Perfect forward secrecy (protects past communications)
+3. Message authentication and anti-replay (ensures message integrity)
+4. Rate limiting (prevents DoS)
+5. Secure key storage (protects long-term keys)

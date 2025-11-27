@@ -3,7 +3,10 @@ import socket
 import sys
 import os
 import re
-
+#
+# FTC Client that connects to an FTP server on port 21 and prompts for username and password.
+# Creates a connection for control and data sockets with passive mode, and runs the connection in a loop to process user commands.
+# Commands include file upload, download, full directory listing, navigation and deletion.
 
 class FTPClient:
 
